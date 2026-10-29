@@ -2,7 +2,7 @@
 
 **DSH 原生 Agent Team 的节点-边面板。** 读取 Lead Session 的 native `agentTeam` 投影，实时画任务/成员图；节点可拖动、展开，依赖线跟随；同一 blocker 的多条依赖自动合成粗干线，细支线从同一汇合点连续衔接；写操作直接调用原生 `ctx.agentTeams`，不引入第二套任务存储。
 
-> 状态：**源码候选**。已在隔离浏览器 harness + 真实构建产物上完成 71 项测试、7 张面板截图与 5 项 Chrome CDP 交互检查；**尚未安装到用户桌面、未重启 GUI、未调用真实模型**。DSH 目标版本 **0.2.1-rc.3**。
+> 状态：**源码候选；已安装到 desktop profile（2026-10-29 13:10 UTC），待重启生效**。已在隔离浏览器 harness + 真实构建产物上完成 71 项测试、7 张面板截图与 5 项 Chrome CDP 交互检查；**未重启 GUI、未调用真实模型**。DSH 目标版本 **0.2.1-rc.3**。安装/回退细节见 [docs/DESKTOP-INSTALL.md](docs/DESKTOP-INSTALL.md)。
 >
 > 截图来自隔离 demo harness（真实 `client.js` + 真实 React + 伪造 native projection），底部状态条明确标注；不是生产桌面截图。
 
@@ -113,7 +113,7 @@ node install-into-profile.mjs --profile "<profile 目录>"
 node uninstall-from-profile.mjs --profile "<profile 目录>"
 ~~~
 
-详见 [docs/INSTALL.md](docs/INSTALL.md)。
+详见 [docs/INSTALL.md](docs/INSTALL.md) 与 [docs/DESKTOP-INSTALL.md](docs/DESKTOP-INSTALL.md)。
 
 ## 5. 开发与验证
 

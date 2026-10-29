@@ -81,7 +81,15 @@ demo 截图是真实 Chromium 渲染，但数据是伪造的 native projection�
 | index.mjs | e3906965510d6625e6ee1cb4ab3b531a6f5d6c540eaf066b82d6abfe1be2e76a |
 | companions/composer-compact/client.js | 1dde18ed8fa5441bf0be0e148a7e742a76bbcbcc5ac586ebd8e674f18413870f |
 
-## 5. 未验证
+## 5. Desktop profile 安装（2026-10-29 13:10 UTC）
+
+- 已把 panel + composer companion 安装到 `C:\Users\Rosen Luo\.dsh\profiles\desktop`（copy），并移除 PAT 受管区块；`selectedDefault` 从 pat 改为 standard。
+- 安装前备份：`cordis.patch.yml.pre-agent-panel-20261029-131016`（8101 B / sha256 7FCBB181…）。
+- 安装后 patch：106 行 / sha256 `303C8DD19C3FAC56DE33097EF978177258F6FF687608CB8DF452318C9BC60835`。
+- **当前宿主仍运行旧模块，未重启**；重启后检查项与回退命令见 [DESKTOP-INSTALL.md](DESKTOP-INSTALL.md)。
+- 未在真实 DSH 页面里点击新 tab，也未验证真实 Team 写路由。
+
+## 6. 未验证
 
 - 未安装到真实 desktop profile；未重启宿主；未在真实 DSH 页面中点击。
 - 写路由只做了 fake agentTeams/agents 的单元测试；没有在真实 Team 服务上执行 create/update/spawn/send。

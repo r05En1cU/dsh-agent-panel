@@ -1,0 +1,5 @@
+node_modules/
+.verify-*.json
+*.log
+*.tmp
+demo/vendor/*.map

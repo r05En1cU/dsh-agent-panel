@@ -1,169 +1,147 @@
 # dsh-agent-panel
 
-**DSH 原生 Agent Team 的节点-边面板。** 读取 Lead Session 的 native `agentTeam` 投影，实时画任务/成员图；节点可拖动、展开，依赖线跟随；同一 blocker 的多条依赖自动合成粗干线，细支线从同一汇合点连续衔接；写操作直接调用原生 `ctx.agentTeams`，不引入第二套任务存储。
+面向 DSH 会话的项目空间界面。注册两个会话视图（工作流、项目摘要），并在原生右侧栏提供协作记录页签。数据取自当前会话已有的 Team、Goal 与记录状态，不设独立任务存储。
 
-> 状态：**源码候选；已安装到 desktop profile（2026-10-29 13:10 UTC），待重启生效**。已在隔离浏览器 harness + 真实构建产物上完成 71 项测试、7 张面板截图与 5 项 Chrome CDP 交互检查；**未重启 GUI、未调用真实模型**。DSH 目标版本 **0.2.1-rc.3**。安装/回退细节见 [docs/DESKTOP-INSTALL.md](docs/DESKTOP-INSTALL.md)。
->
-> 截图来自隔离 demo harness（真实 `client.js` + 真实 React + 伪造 native projection），底部状态条明确标注；不是生产桌面截图。
+![图 1：工作流视图，浅色，1440×900](docs/screenshots/project-space/workflow-light.png)
 
-![面板总览](docs/screenshots/panel-overview.png)
+*图 1：工作流视图。目标、Lead、成员、任务与结果位于同一视图；每个成员对应一个委派入口。*
 
-## 1. 它解决什么
+## 1. 目标与约束
 
-原生 Agent Team 的 header 面板是 roster + 任务卡列表；任务之间的 `blockedBy` 只是一段文本。项目把同一份原生投影做成一个**可操作的节点-边面板**：
+DSH 的 Agent Team 在单个会话内并行执行多个任务。任务、成员状态、交付结果与人工决定分别保存在不同来源，缺乏统一的呈现位置。本插件将上述对象组织为一个可导航的工作流视图、一个可快速浏览的摘要视图，以及一个由 Lead 维护的版本化协作记录面板。
 
-- **实时**：订阅 `sessions.list` 的原生 projection，Team 一变就重绘；不轮询、不复制状态。
-- **移动/展开**：拖动任务卡；双击或 ▾ 原地展开详情。连线按真实 DOM 端口测量，节点移动/展开后自动跟随。
-- **粗线束**：同一 blocker 的多条 `blockedBy` 先汇到 junction，再分成细支线；trunk 无箭头、支线箭头指向 dependent，汇合点连续无缝。
-- **原生写操作**：新建/认领/完成/释放/重开/编辑/分配/删除任务，创建 teammate，发送消息——全部走 Host exact route → `ctx.agentTeams`，权限由当前 live Agent 的原生 Team 角色判定。
-- **目标/阶段绑定**：Team 级 `goal` projection 显示 objective/phase/rounds；每个任务显示派生的阶段（blocked/ready/active/done）和 owner/target 绑定，点击 owner 打开成员会话。
-- **composer 折叠 companion**：保留主输入框折叠功能，作为同仓库 companion 一起安装，不混入面板状态。
+设计约束如下：
 
-## 2. 界面
+1. 视图只读取既有会话数据；不建立第二套任务或成员存储。
+2. 原生执行事实与人工整理内容分离。任务完成状态不表示人工验收通过；Lead 记录的结论不覆盖原始事件。
+3. 存在性不确定的状态（成员运行状态、任务归属、引用位置）显式标记为未知或未提供，不做推断。
+4. 不引入原生代码修改。所有界面均通过 DSH 插件扩展点注册。
 
-### 2.1 总览与实时投影
+## 2. 界面组成
 
-![总览](docs/screenshots/panel-overview.png)
+### 2.1 工作流视图
 
-### 2.2 粗线束：trunk + branches
+工作流视图为会话内的一个独立视图，与 Chat、Trajectory 并列。图节点分为五类：目标（原生 Goal）、Lead、成员、任务、结果（协作记录）。边包括：目标→Lead、Lead→成员（每个成员单一委派入口）、成员→任务、任务/成员→结果。结果与任务、成员之间的边仅由记录中显式给出的标识产生，不按时间或成员名推断。
 
-同一 blocker 的 3 条依赖：
+交互包括节点与边的选取、详情侧栏、`F` 全览、`Esc` 恢复聚焦前视口、显式重新布局、节点拖拽。订阅更新只放置新增节点，不重排既有布局。节点位置与视口按会话保存在浏览器本地存储。
 
-![粗线束](docs/screenshots/panel-bundled.png)
+![图 2：项目摘要视图，浅色，1440×900](docs/screenshots/project-space/summary-light.png)
 
-- 粗 trunk：宽度 `min(8, 2.8 + 1.1 × (count - 1))`
-- 细 branch：1.8px，带箭头
-- trunk 终点与所有 branch 起点使用**同一个 junction 坐标**，不出现粗线断开/细线漂移
-- 单条依赖不合并，保持普通细线
+*图 2：项目摘要视图。与工作流视图使用同一数据来源，按目标、待确认、成员、任务、记录分区呈现。*
 
-### 2.3 节点展开：线跟随
+### 2.2 项目摘要视图
 
-![展开节点](docs/screenshots/panel-expanded.png)
+摘要视图为第二个独立注册的会话视图，不构成工作流视图内的模式切换。分区包括：目标、待确认事项、成员（含运行状态）、任务（含状态与阻塞关系）、协作记录摘要。
 
-展开增加节点高度、重排层级；端口按 DOM 实测，连线在同一帧跟随。
+### 2.3 协作记录面板
 
-拖动 + 实时投影推送（真实 headless Chrome，CDP 驱动）：
+协作记录以页签形式注册到原生右侧栏，由会话头部的记录入口打开，入口显示当前待确认数量。面板内容只读，包含：作者、修订号、更新时间、待确认事项、显式关联的任务与成员、来源引用、完整版本历史。
 
-![拖动与实时](docs/screenshots/panel-dragged-live.png)
+进入详情、切换视图或关闭/重新打开面板均不改变待确认状态；仅当 Lead 写入的新修订不再包含某待确认项时，该项从面板与计数中移除。
 
-- task-2 从 `left=376px/top=32px` 拖到 `left=518.879px/top=89.1518px`；对应 blockedBy branch 的 `d` 同步变化。
-- trunk 终点与三条 branch 起点均为 `319.607 187.653`（拖动后重新计算 junction，仍完全一致）。
-- 同页执行 `sessions.update(fixture)` 模拟 native projection push，标题从原任务变为「实时推送后的任务标题」，无刷新。
+![图 3：协作记录面板，浅色，1440×900](docs/screenshots/project-space/records-light.png)
 
-### 2.4 原生任务创建
+*图 3：右侧栏协作记录面板。记录带有修订号、作者、显式关联与来源引用。*
 
-![新建任务](docs/screenshots/panel-new-task.png)
+## 3. 数据与状态语义
 
-依赖任务多选；提交调用 `createTask`，不写本地 Team 状态。
+本插件的显示对象来自以下来源：
 
-### 2.5 原生 teammate 创建
+- Team 成员与任务：来自 Lead 会话的 Team 状态；
+- 目标：来自会话的原生 Goal 状态；
+- 成员运行状态：来自对应成员会话的实时状态字段；
+- 协作记录：来自 Lead 写入的、带版本的记录事件；记录含有作者、修订号、显式关联与来源引用。
 
-![创建成员](docs/screenshots/panel-spawn.png)
+状态语义按以下规则处理：
 
-仅 Lead 可创建（按钮按 `canSpawn` 禁用）；provider 按 `fresh → spawn` / `fork → fork` 选择。
+- Agent 运行状态、任务状态、人工结论三者分开展示，不互相替代。
+- 团队未启用或数据缺失时，相关区域显示明确的缺失或未知状态；不注入示例数据。
+- 不生成进度百分比。任务完成数量与实际验收数量分别计算。
+- 来源引用指向 `(sessionId, seq)`；引用是否可见取决于对应会话是否可访问及事件窗口是否已加载。
 
-### 2.6 成员检查器与 target 绑定
+## 4. 视觉规范
 
-![成员检查器](docs/screenshots/panel-member.png)
+- 浅色主题：白色卡片、石墨色文字、蓝色提示；不使用琥珀色或黄色背景配棕色文字，不使用数字序号分栏。
+- 深色主题为独立配色方案，通过语义化主题变量实现，不采用反色或滤镜生成。
+- 待确认状态以蓝色实心角标、左侧边线、文字与数量共同表示；选中状态使用独立外轮廓。两者互不覆盖。
+- 默认字号下正文可读；顶部区域保持紧凑，画布占据主要空间；详情置于按需侧栏。
+- 视口宽度 1440 与 768 下，界面不产生页面级横向滚动。
 
-### 2.7 composer 折叠 companion
+![图 4：协作记录面板，深色，1440×900](docs/screenshots/project-space/records-dark.png)
 
-![composer 折叠](docs/screenshots/composer-collapsed.png)
+*图 4：深色主题下的同一面板。*
 
-主输入框折叠为单行条、保留原生发送按钮；完整行为见 [companions/composer-compact/README.md](companions/composer-compact/README.md)。截图裁剪自 companion 的隔离 rc.3 验证归档（本轮未重跑），仅展示收起的输入条。
+## 5. 集成与安装
 
-## 3. 数据流与边界
+本插件以 DSH 插件形式运行，不修改 DSH 原生代码：
 
-~~~text
-native Lead Session
-  └─ sessionProjections: agentTeam (stateVersion 4) + goal
-       └─ sessions.list snapshot ── subscribe ──▶ client panel
-                                                    │
-                                                    ├─ normalizeTeamView / buildTeamGraph
-                                                    ├─ layoutTeamGraph / routeTeamEdges
-                                                    └─ drag / expand / inspector / modal
+- 两个视图通过 `conversation.view` 扩展点注册；
+- 记录页签通过原生右侧栏的页签注册接口注册，面板内容注册在对应的侧栏内容位；
+- 记录入口注册在会话头部的操作位；
+- 数据读取使用客户端既有的 Session 状态与投影接口；不新增远程读接口，不建立并行状态。
 
-panel action ── POST /api/agent-team-panel.* ──▶ host exact route
-                                                └─ ctx.agents.get(sessionId)
-                                                   └─ ctx.agentTeams.{createTask,updateTask,spawnTeammate,sendMessage}
-~~~
+前置条件：
 
-- **读**：浏览器只读 native projection；Host 没有额外 state GET，也没有第二份持久化。
-- **写**：四条 exact POST route，caller = 当前 session 的 exact live Agent；不会静默替换成 Lead。
-- **目标**：Team 级 goal projection；任务目标 = 原生 `subject`，阶段由 `status + ready + blockedBy` 派生。
-- **不做的**：不消费/不迁移任何独立任务库，不改原生日志格式，不把任务写进 session 日志；没有 Team projection 时展示空态。
+- DSH 0.2.1 及以上的 Web 或桌面 profile；
+- 已启用 Agent Teams（`@deepseek-ai/dsh-experimental-agent-team-profile`）；
+- Node.js 24。
 
-## 4. 安装
+安装脚本做两件事：把两个构建产物复制到 `<profile>/node_modules/@deepseek-ai/`；在 `<profile>/cordis.patch.yml` 末尾追加一段带标记的 loader 行，指向这两个包的 `lib/index.js`。脚本会先备份 profile patch，重复执行时替换旧标记块，不启动或重启宿主。默认拒绝 live desktop profile，需要显式传入 `--allow-desktop`。
 
-前置：DSH 0.2.1-rc.3 的 Web profile，Node 24。
-
-~~~powershell
+```powershell
 git clone https://github.com/r05En1cU/dsh-agent-panel.git
 cd dsh-agent-panel
-node scripts/build-client.mjs
 node install-into-profile.mjs --profile "<profile 目录>"
-# 重启或刷新宿主；脚本本身不启动/重启/杀死宿主
-~~~
+# 桌面 profile 需显式允许：
+# node install-into-profile.mjs --profile "%USERPROFILE%\.dsh\profiles\desktop" --allow-desktop
+# 重启 DSH 宿主后生效
+```
 
-安装会做两件事：把 `dsh-plugin-agent-team-panel` 与 `dsh-plugin-composer-compact` 放到 profile 的 `node_modules`；在 `cordis.patch.yml` 追加两条带标记的 insert 块。默认拒绝 live desktop profile，必须显式 `--allow-desktop`；支持 `--link` / `--dry-run`，重复运行幂等。
+卸载脚本删除标记块与两个包目录，并在写入前备份 profile patch：
 
-回退：
-
-~~~powershell
+```powershell
 node uninstall-from-profile.mjs --profile "<profile 目录>"
-~~~
+```
 
-详见 [docs/INSTALL.md](docs/INSTALL.md) 与 [docs/DESKTOP-INSTALL.md](docs/DESKTOP-INSTALL.md)。
+## 6. 验证状态
 
-## 5. 开发与验证
+在 Windows 环境下，以 DSH `0.2.2-alpha.2` 源码构建的 Web 组合完成验证：
 
-~~~powershell
-node scripts/build-client.mjs
-node --test --test-concurrency=1 --test-timeout=30000 "test/*.test.mjs"
-node demo/selfcheck.mjs
-node scripts/shoot.mjs
-node scripts/cdp-check.mjs
-~~~
+| 项目 | 结果 |
+| --- | --- |
+| 构建（8 个构建门） | 8/8 通过 |
+| 类型检查（Host 与 Client 两个聚合项目） | 2/2 通过 |
+| 相关测试（Host、Client、Trajectory、Stats、Profile） | 86 个文件 / 1430 项通过 |
+| 真实浏览器端到端测试（含真实 Host 与记录写入） | 刷新模式 12/12，回放模式 12/12 |
+| 浅色/深色、1440/768 截图 | 12 张 |
 
-| 范围 | 结果 |
-|---|---|
-| host routes（4 条 POST、参数/权限/错误映射/注册清理） | 37/37 |
-| model（native wire 规范化、stage/goal/target 绑定） | 15/15 |
-| geometry（分层、trunk/branch 连续性、实测端口、移动/展开） | 16/16 |
-| built client（ModuleLoader、注册、projection 读取、打包函数） | 3/3 |
-| 合计 | **71/71 pass** |
-| 浏览器 demo | 7 张真实 headless Chrome 截图 |
-| CDP 交互 | 5/5（挂载、拖动、branch 跟随、trunk/branch 连续性、projection 实时更新） |
+另在已安装的 DSH 桌面运行时（0.2.1-rc.5）验证插件加载：插件出现在浏览器启动清单中，页面无脚本错误、无控制台错误、无失败请求。该验证仅覆盖加载与渲染，不包含完整交互回归。
 
-- 截图脚本：[scripts/shoot.mjs](scripts/shoot.mjs)（本地静态服务器 + Chrome headless；不访问网络）。
-- demo harness：[demo/index.html](demo/index.html)；fake native projection 在 [demo/fixtures.mjs](demo/fixtures.mjs)。
-- 数据/几何契约：[docs/GRAPH-MODEL.md](docs/GRAPH-MODEL.md)；Host API：[docs/HOST-API.md](docs/HOST-API.md)；逐项结果与限制：[docs/VERIFICATION.md](docs/VERIFICATION.md)。
+## 7. 已知限制
 
-## 6. 已知限制
+1. 默认视图仍为 Chat。工作流与摘要需通过视图页签切换；未提供默认视图覆盖。
+2. 同会话内的来源引用不能定位到具体事件。当前无原生接口支持跨组件的事件序号定位，面板对同会话引用显示明确提示；跨会话引用仅打开来源会话。
+3. 团队未启用时，工作流视图停留在加载状态，未呈现完整的未启用空态。原因是相关投影单元缺失时客户端状态无法收敛。
+4. 任务归属按 `ownerName` 精确匹配成员名；任务视图不提供 `ownerId`。名称缺失或重复时，不建立归属边并显示未分配。
+5. 记录以实验性插件记录形式持久化。该类记录可被不识别它的读取方忽略；未来会话格式迁移仅尽力保留，不提供强保证。
+6. 未提供读取记录的模型工具。Lead 通过写入工具返回的修订号继续修订。
+7. 浅色主题下部分次要文本的对比度低于 WCAG AA：49 个采样中 12 个低于 4.5:1，最低 3.71:1。深色主题最低 6.53:1，中位数 9.25:1。
+8. 布局与视口仅在浏览器本地按会话保存，不跨设备同步。
+9. 不包含个人记忆或行为画像；不包含跨会话的 Goal 事务、任务调度或人工验收工作流。
 
-- 不是生产 desktop/CU 视觉签收；demo 使用合成 native projection，截图底部有隔离说明。
-- 写操作需要当前 session 的 live Agent；页面在 agent 未加载时会收到 `AGENT_NOT_LOADED`，不会伪造 caller。
-- 原生 projection 失败时面板显示失败 banner，不尝试恢复/重建 Team。
-- 视觉端口测量依赖 `ResizeObserver`；不支持时退回盒子锚点（仍能跟随，但精度较低）。
-- 暗色主题、窄屏触控、超大图（>100 任务）和真实帧率未系统验证；布局是确定性分层，不是力导向。
-- composer companion 是独立 package；截图来自历史验证归档，本轮未重跑其 59 项。
+## 8. 仓库结构
 
-## 7. 目录
+```text
+packages/
+  dsh-experimental-collaboration-records/   Host 插件（lib/index.js）
+  dsh-experimental-client-ui-project-space/ 浏览器插件（lib/index.js、lib/client.js）
+docs/screenshots/project-space/             README 图示
+install-into-profile.mjs                    安装到指定 DSH profile
+uninstall-from-profile.mjs                  卸载
+package.json                                仓库元数据与本地脚本
+BUILD-PROVENANCE.md                         构建来源与哈希
+```
 
-~~~text
-index.mjs                  host half: exact owner routes -> ctx.agentTeams
-src/host-routes.mjs        native service route handlers
-src/model.mjs              native projection -> tasks/members/stages/goal
-src/geometry.mjs           layered layout + trunk/branch routing
-src/client-body.js         React panel, drag/expand/live/inspector/modals
-scripts/build-client.mjs   concatenates the browser half -> client.js
-scripts/shoot.mjs          isolated demo + headless screenshots
-companions/composer-compact/  preserved composer-collapse plugin
-demo/                      zero-build browser harness + fixtures
-docs/                      contract, graph model, host API, install
-test/                      node:test suites
-~~~
+## License
 
-## 8. License
-
-MIT。composer companion 保留其原始 MIT 许可与行为。
+MIT

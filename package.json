@@ -1,37 +1,16 @@
 {
-  "name": "dsh-plugin-agent-team-panel",
-  "version": "0.1.0",
+  "name": "dsh-agent-panel",
+  "version": "0.2.2-alpha.2",
   "private": true,
-  "description": "Standalone DSH Agent Team panel: native team projection, node-edge graph, drag/expand, bundled dependencies, live updates, native Team actions.",
+  "description": "DSH project-space plugin: Workflow and Summary conversation views plus a native right-Sidebar collaboration-records panel.",
   "type": "module",
-  "main": "index.mjs",
-  "exports": {
-    ".": "./index.mjs",
-    "./client": "./client.js",
-    "./package.json": "./package.json"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/r05En1cU/dsh-agent-panel.git"
   },
-  "dsh": {
-    "client": {
-      "platform": "web"
-    }
-  },
-  "files": [
-    "index.mjs",
-    "client.js",
-    "src",
-    "companions",
-    "scripts",
-    "install-into-profile.mjs",
-    "uninstall-from-profile.mjs",
-    "README.md",
-    "LICENSE"
-  ],
   "scripts": {
-    "build": "node scripts/build-client.mjs",
-    "test": "node --test --test-concurrency=1 --test-timeout=30000 \"test/*.test.mjs\"",
-    "screenshots": "node scripts/shoot.mjs",
-    "check:ui": "node scripts/cdp-check.mjs",
-    "check:demo": "node demo/selfcheck.mjs"
-  },
-  "license": "MIT"
+    "install-plugin": "node install-into-profile.mjs",
+    "uninstall-plugin": "node uninstall-from-profile.mjs"
+  }
 }

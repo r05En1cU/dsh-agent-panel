@@ -1,0 +1,17 @@
+{
+  "name": "@deepseek-ai/dsh-experimental-collaboration-records",
+  "version": "0.2.2-alpha.2",
+  "description": "Lead-only collaboration records: versioned plugin events, session projection, and the write tool.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "MIT"
+}
